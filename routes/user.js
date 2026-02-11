@@ -41,17 +41,11 @@ const signupSchema = z.object({
   firstName: z.string().refine((val) => val.split(" ").length === 1, {
     message: "First name must be a single word",
   }),
-  lastName: z
-    .string()
-    .min(1)
-    .refine((val) => {
-      (val.split(" ").length === 2,
-        { message: "Last name must contain exactly two words" });
-    }),
+  lastName: z.string().min(1),
 });
 
 const signinSchema = z.object({
-  emaile: z.string().email({
+  email: z.string().email({
     message: "Invalid email address",
   }),
   password: z.string().min(1, { message: "Password is required" }),
@@ -85,7 +79,7 @@ userRouter.post("/signup", async (req, res) => {
     }
 
     // hash password
-    const hashMyPassword = bcrypt.hash(password, 10);
+    const hashMyPassword = await bcrypt.hash(password, 10);
     const user = await userModel.create({
       email: email,
       password: hashMyPassword,
@@ -107,8 +101,8 @@ userRouter.post("/signin", async (req, res) => {
   // const { email, password } = req.body;
   try {
     const parsedData = signinSchema.safeParse(req.body);
-    if (!parsedData) {
-      return res.status(409).json({ errors: parsed.error.errors });
+    if (!parsedData.success) {
+      return res.status(409).json({ errors: parsedData.error.errors });
     }
 
     const { email, password } = parsedData.data;
@@ -129,12 +123,17 @@ userRouter.post("/signin", async (req, res) => {
       });
     }
 
+    if (!JWT_USER_PASSWORD) {
+      throw new Error(
+        "JWT_USER_PASSWORD is not defined in environment variables",
+      );
+    }
     const token = jwt.sign(
       {
         id: user._id,
       },
       JWT_USER_PASSWORD,
-      { expires: "7d" },
+      { expiresIn: "7d" },
     );
     // do cookie or session logic here if u dont want jwt token based authentication
     res.json({ token: token });
