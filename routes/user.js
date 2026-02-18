@@ -1,10 +1,10 @@
 const { Router } = require("express");
 const userRouter = Router();
 const bcrypt = require("bcrypt");
-const { userModel } = require("../db");
+const { userModel, purchaseModel } = require("../db");
 const { z } = require("zod");
 const jwt = require("jsonwebtoken");
-const JWT_USER_PASSWORD = process.env.JWT_USER_PASSWORD;
+const { JWT_USER_PASSWORD } = require("../config");
 
 /* =========================
    Zod Signup Schema
@@ -102,7 +102,7 @@ userRouter.post("/signin", async (req, res) => {
   try {
     const parsedData = signinSchema.safeParse(req.body);
     if (!parsedData.success) {
-      return res.status(409).json({ errors: parsedData.error.errors });
+      return res.status(400).json({ errors: parsedData.error.errors });
     }
 
     const { email, password } = parsedData.data;
@@ -145,7 +145,11 @@ userRouter.post("/signin", async (req, res) => {
   }
 });
 
-userRouter.get("/purchases", (req, res) => {
+userRouter.get("/purchases", userMiddleware, async (req, res) => {
+  const userId = req.userId;
+  const purchases = await purchaseModel.find({
+    userId,
+  });
   res.json({ message: "Purchases endpoint" });
 });
 

@@ -1,10 +1,11 @@
 const { Router } = require("express");
 const adminRouter = Router();
-const { adminModel } = require("../db");
+const { adminModel, courseModel } = require("../db");
 const { z, number, safeParse } = require("zod");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const JWT_ADMIN_PASSWORD = process.env.JWT_ADMIN_PASSWORD;
+const { JWT_ADMIN_PASSWORD } = require("../config");
+const { adminMiddleWare } = require("../middleware/admin");
 // Zod Schema for admin
 const signupSchema = z.object({
   email: z.string().email(),
@@ -76,7 +77,7 @@ adminRouter.post("/signup", async (req, res) => {
 
     return res.status(201).json({
       message: "User created successfully",
-      userId: admin._id,
+      adminId: admin._id,
     });
   } catch (err) {
     console.error(err);
@@ -127,16 +128,107 @@ adminRouter.post("/signin", async (req, res) => {
   }
 });
 
-adminRouter.post("/course", (req, res) => {
-  res.json({ message: "course creation endpoint" });
+adminRouter.post("/course", adminMiddleWare, async (req, res) => {
+  try {
+    const adminId = req.adminId;
+
+    // we are taking imageURL from user it would be better if we upload directly from the browser
+    const { title, description, imageUrl, price } = req.body;
+
+    if (!title || !price) {
+      return res.status(400).json({
+        message: "Title and price are required",
+      });
+    }
+
+    const course = await courseModel.create({
+      title: title,
+      description: description,
+      imageUrl: imageUrl,
+      price: price,
+      creatorId: adminId,
+    });
+
+    return res.json({ message: "Course created", courseId: course._id });
+  } catch (err) {
+    console.error("Course creation error:", err);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
 });
 
-adminRouter.put("/course", (req, res) => {
-  res.json({ message: "course endpoint" });
+adminRouter.put("/course", adminMiddleWare, async (req, res) => {
+  try {
+    const adminId = req.adminId;
+
+    const { title, description, imageUrl, price, courseId } = req.body;
+
+    if (!courseId) {
+      return res.status(400).json({ message: "Course ID is required" });
+    }
+
+    // admin who owns the course can only change the course not other admin can change other admin code!!
+    // It should match with creatorId that is
+    const course = await courseModel.updateOne(
+      {
+        _id: courseId,
+        creatorId: adminId,
+      },
+      {
+        $set: {
+          title: title,
+          description: description,
+          imageUrl: imageUrl,
+          price: price,
+        },
+      },
+    );
+
+    if (!course.matchedCount === 0) {
+      return res.status(403).json({
+        message: "Unauthorized: You can only update your own courses",
+      });
+    }
+
+    // If no document matched → either course doesn't exist OR not owned by this admin
+    if (course.matchedCount === 0) {
+      return res.status(403).json({
+        message: "Unauthorized: You can only update your own courses",
+      });
+    }
+
+    return res.status(200).json({ message: "course updated successfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 });
 
-adminRouter.get("/course/bulk", (req, res) => {
-  res.json({ message: "course endpoint" });
+adminRouter.get("/course/bulk", adminMiddleWare, async (req, res) => {
+  try {
+    const adminId = req.adminId;
+    if (!adminId) {
+      return res.status(401).json({
+        message: "Unauthorized: Admin ID not found",
+      });
+    }
+    const courses = await courseModel.find({
+      creatorId: adminId,
+    });
+    res.status(200).json({
+      message: "Course fetched successfully",
+      courses: courses,
+    });
+  } catch (err) {
+    console.error("Error fetching courses:", err);
+
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
 });
 
 module.exports = { adminRouter };
