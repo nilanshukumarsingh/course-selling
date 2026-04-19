@@ -1,11 +1,11 @@
 const { Router } = require("express");
 const userRouter = Router();
 const bcrypt = require("bcrypt");
-const { userModel, purchaseModel } = require("../db");
+const { userModel, purchaseModel, courseModel } = require("../db");
 const { z } = require("zod");
 const jwt = require("jsonwebtoken");
 const { JWT_USER_PASSWORD } = require("../config");
-
+const { userMiddleware } = require("../middleware/user");
 /* =========================
    Zod Signup Schema
 ========================= */
@@ -146,11 +146,24 @@ userRouter.post("/signin", async (req, res) => {
 });
 
 userRouter.get("/purchases", userMiddleware, async (req, res) => {
-  const userId = req.userId;
-  const purchases = await purchaseModel.find({
-    userId,
-  });
-  res.json({ message: "Purchases endpoint" });
+  try {
+    const userId = req.userId;
+
+    const purchases = await purchaseModel.find({ userId });
+
+    // get back the courseId
+    const coursesData = await courseModel.find({
+      _id: { $in: purchases.map((x) => x.courseId) },
+    });
+
+    res.json({
+      message: "Purchases fetched successfully",
+      purchases,
+      coursesData,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching purchases" });
+  }
 });
 
 module.exports = { userRouter };

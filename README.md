@@ -17,3 +17,10 @@ Good to haves
 - Add a rate limiting middleware
 - Frontend in ejs (low pri)
 - Frontend in React
+
+<!-- Good to haves  -->
+
+- Use cookies instead of JWT for auth
+- Add a rate limiting middleware
+- Frontend in ejs (low pri)
+- Frontend in react
